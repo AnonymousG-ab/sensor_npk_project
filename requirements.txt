@@ -1,0 +1,6 @@
+numpy
+pandas
+tensorflow
+paho-mqtt
+joblib
+requests

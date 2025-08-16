@@ -1,3 +1,5 @@
+import os
+import requests
 import joblib
 import numpy as np
 import pandas as pd
@@ -5,14 +7,30 @@ from tensorflow.keras.models import load_model
 import paho.mqtt.client as mqtt
 import json
 
+# ===== Fungsi download dari Google Drive =====
+def download_from_drive(file_id, filename):
+    if not os.path.exists(filename):
+        print(f"📥 Downloading {filename} from Google Drive...")
+        url = f"https://drive.google.com/uc?export=download&id={file_id}"
+        r = requests.get(url)
+        with open(filename, "wb") as f:
+            f.write(r.content)
+        print(f"✅ {filename} downloaded successfully!")
+
+# ===== Download file model, scaler, dan label encoder =====
+download_from_drive("1KwCz2xT8icqE4TvqhpNq5KMDxvmS8ORD", "model_ann.h5")
+download_from_drive("1IEJnTwTu8hxrnqm8v4OPJtnA4g0SdkSu", "scaler.pkl")
+download_from_drive("1LE41ldINDwDgAcp_BEQTVPWm1NnzH7Dw", "label_encoder.pkl")
+
 # ===== Load model, scaler, dan label encoder =====
-model = load_model(r"C:\Users\ferdi\OneDrive - Universitas Negeri Malang\Documents\Project traktor\programm server\content\programm\model_ann.h5")
-scaler = joblib.load(r"C:\Users\ferdi\OneDrive - Universitas Negeri Malang\Documents\Project traktor\programm server\content\programm\scaler.pkl")
-label_encoder = joblib.load(r"C:\Users\ferdi\OneDrive - Universitas Negeri Malang\Documents\Project traktor\programm server\content\programm\label_encoder.pkl")
+model = load_model("model_ann.h5")
+scaler = joblib.load("scaler.pkl")
+label_encoder = joblib.load("label_encoder.pkl")
 
 # ===== Fungsi prediksi =====
 def prediksi_tanaman(ph, n, p, k):
-    input_data = pd.DataFrame([[ph, n, p, k]], columns=['PH', 'Nitrogen (N)', 'Phosphorus (P)', 'Potassium (K)'])
+    input_data = pd.DataFrame([[ph, n, p, k]],
+                              columns=['PH', 'Nitrogen (N)', 'Phosphorus (P)', 'Potassium (K)'])
     input_scaled = scaler.transform(input_data)
     prediksi_prob = model.predict(input_scaled, verbose=0)
     prediksi_kelas = np.argmax(prediksi_prob, axis=1)
@@ -20,7 +38,7 @@ def prediksi_tanaman(ph, n, p, k):
 
 # ===== Variabel global =====
 state_active = False
-data_buffer = []  # Simpan semua pembacaan sensor untuk dirata-rata
+data_buffer = []
 BROKER = "broker.emqx.io"
 PORT = 1883
 
@@ -47,15 +65,14 @@ def on_message(client, userdata, msg):
                 print("Stop pembacaan, proses prediksi...")
 
                 if data_buffer:
-                    avg_data = np.mean(data_buffer, axis=0)  # Rata-rata PH, N, P, K
+                    avg_data = np.mean(data_buffer, axis=0)
                     ph, n, p, k = avg_data
                     hasil_prediksi = prediksi_tanaman(ph, n, p, k)
 
-                    # Publish hasil
-                    client.publish("sensor/N", n)
-                    client.publish("sensor/P", p)
-                    client.publish("sensor/K", k)
-                    client.publish("sensor/PH", ph)
+                    client.publish("sensor/N", str(n))
+                    client.publish("sensor/P", str(p))
+                    client.publish("sensor/K", str(k))
+                    client.publish("sensor/PH", str(ph))
                     client.publish("sensor/prediksi", hasil_prediksi)
 
                     print(f"Hasil prediksi: {hasil_prediksi}")
