@@ -4,3 +4,4 @@ tensorflow
 paho-mqtt
 joblib
 requests
+scikit-learn
